@@ -95,8 +95,37 @@ func RegisterHandlers(oauth2ServerAddrVal string, keyFile string) error {
 		return err
 	}
 	// Build a fosite instance with all OAuth2 and OpenID Connect handlers enabled, plugging in our configurations as specified above.
-	oauth2 = compose.ComposeAllEnabled(config, store, secret, privateKey)
-	oauth2 = compose.ComposeAllEnabled(config, store, secret, privateKey)
+	// oauth2 = compose.ComposeAllEnabled(config, store, secret, privateKey)
+
+	// Use JWT tokens instead of opaque HMAC
+	strategy := compose.CommonStrategy{
+		CoreStrategy: compose.NewOAuth2JWTStrategy(
+			privateKey,
+			compose.NewOAuth2HMACStrategy(config, []byte("some-super-cool-secret-that-nobody-knows"), nil),
+		),
+		OpenIDConnectTokenStrategy: compose.NewOpenIDConnectStrategy(config, privateKey),
+	}
+	oauth2 = compose.Compose(
+		config,
+		store,
+		strategy,
+		nil,
+
+		compose.OAuth2AuthorizeExplicitFactory,
+		compose.OAuth2AuthorizeImplicitFactory,
+		compose.OAuth2ClientCredentialsGrantFactory,
+		compose.OAuth2RefreshTokenGrantFactory,
+		compose.OAuth2ResourceOwnerPasswordCredentialsFactory,
+
+		compose.OpenIDConnectExplicitFactory,
+		compose.OpenIDConnectImplicitFactory,
+		compose.OpenIDConnectHybridFactory,
+		compose.OpenIDConnectRefreshFactory,
+
+		compose.OAuth2TokenIntrospectionFactory,
+
+		compose.OAuth2PKCEFactory,
+	)
 	// Set up oauth2 endpoints. You could also use gorilla/mux or any other router.
 	http.HandleFunc("/oauth2/auth", authEndpoint)
 	http.HandleFunc("/oauth2/token", tokenEndpoint)
@@ -118,14 +147,14 @@ func RegisterHandlers(oauth2ServerAddrVal string, keyFile string) error {
 // Usually, you could do:
 //
 //  session = new(fosite.DefaultSession)
-func newSession(user, issuer string) *openid.DefaultSession {
+// func newSession(user, issuer string) *openid.DefaultSession {
+func newSession(user, issuer string) *storage.Session {
 	// For additional claims: https://www.iana.org/assignments/jwt/jwt.xhtml
-	return &openid.DefaultSession{
-		// return NewSession{
+	opendidSession := &openid.DefaultSession{
 		Claims: &jwt.IDTokenClaims{
 			Issuer:      issuer, //"https://" + oauth2ServerAddr,
 			Subject:     user,
-			Audience:    []string{"https://my-client.my-application.com"},
+			Audience:    []string{"https://" + oauth2ServerAddr}, // TODO try to get the redirect and make that the audience
 			ExpiresAt:   time.Now().Add(time.Hour * 6),
 			IssuedAt:    time.Now(),
 			RequestedAt: time.Now(),
@@ -134,5 +163,13 @@ func newSession(user, issuer string) *openid.DefaultSession {
 		Headers: &jwt.Headers{
 			Extra: make(map[string]interface{}),
 		},
+		Username: user,
+		Subject:  user,
+	}
+	// return opendidSession
+	return &storage.Session{
+		DefaultSession: opendidSession,
+		// ClientID: ,
+		Extra: map[string]interface{}{},
 	}
 }

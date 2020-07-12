@@ -71,24 +71,24 @@ type StoreAuthorizeCode struct {
 func NewExampleStore() *MemoryStore {
 	return &MemoryStore{
 		IDSessions: make(map[string]fosite.Requester),
-		Clients: map[string]fosite.Client{
-			"my-client": &fosite.DefaultClient{
-				ID:            "my-client",
-				Secret:        []byte(`$2a$10$IxMdI6d.LIRZPpSfEwNoeu4rY3FhDREsxFJXikcgdRRAStxUlsuEO`), // = "foobar"
-				RedirectURIs:  []string{"http://localhost:3846/callback"},
-				ResponseTypes: []string{"id_token", "code", "token", "id_token token", "code id_token", "code token", "code id_token token"},
-				GrantTypes:    []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
-				Scopes:        []string{"fosite", "openid", "photos", "offline"},
-			},
-			"encoded:client": &fosite.DefaultClient{
-				ID:            "encoded:client",
-				Secret:        []byte(`$2a$10$A7M8b65dSSKGHF0H2sNkn.9Z0hT8U1Nv6OWPV3teUUaczXkVkxuDS`), // = "encoded&password"
-				RedirectURIs:  []string{"http://localhost:3846/callback"},
-				ResponseTypes: []string{"id_token", "code", "token", "id_token token", "code id_token", "code token", "code id_token token"},
-				GrantTypes:    []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
-				Scopes:        []string{"fosite", "openid", "photos", "offline"},
-			},
-		},
+		// Clients: map[string]fosite.Client{
+		// 	"my-client": &fosite.DefaultClient{
+		// 		ID:            "my-client",
+		// 		Secret:        []byte(`$2a$10$IxMdI6d.LIRZPpSfEwNoeu4rY3FhDREsxFJXikcgdRRAStxUlsuEO`), // = "foobar"
+		// 		RedirectURIs:  []string{"http://localhost:3846/callback"},
+		// 		ResponseTypes: []string{"id_token", "code", "token", "id_token token", "code id_token", "code token", "code id_token token"},
+		// 		GrantTypes:    []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
+		// 		Scopes:        []string{"fosite", "openid", "photos", "offline"},
+		// 	},
+		// 	"encoded:client": &fosite.DefaultClient{
+		// 		ID:            "encoded:client",
+		// 		Secret:        []byte(`$2a$10$A7M8b65dSSKGHF0H2sNkn.9Z0hT8U1Nv6OWPV3teUUaczXkVkxuDS`), // = "encoded&password"
+		// 		RedirectURIs:  []string{"http://localhost:3846/callback"},
+		// 		ResponseTypes: []string{"id_token", "code", "token", "id_token token", "code id_token", "code token", "code id_token token"},
+		// 		GrantTypes:    []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
+		// 		Scopes:        []string{"fosite", "openid", "photos", "offline"},
+		// 	},
+		// },
 		// Users: map[string]MemoryUserRelation{
 		// 	"peter": {
 		// 		// This store simply checks for equality, a real storage implementation would obviously use
@@ -166,6 +166,7 @@ func (s *MemoryStore) SetClientAssertionJWT(_ context.Context, jti string, exp t
 }
 
 func (s *MemoryStore) CreateAuthorizeCodeSession(_ context.Context, code string, req fosite.Requester) error {
+	// fmt.Printf("CreateAuthorizeCodeSession for username=%s subject=%s\n", req.GetSession().GetUsername(), req.GetSession().GetSubject())
 	s.AuthorizeCodes[code] = StoreAuthorizeCode{active: true, Requester: req}
 	return nil
 }
@@ -178,6 +179,9 @@ func (s *MemoryStore) GetAuthorizeCodeSession(_ context.Context, code string, _ 
 	if !rel.active {
 		return rel, fosite.ErrInvalidatedAuthorizeCode
 	}
+	// sess := rel.Requester.GetSession().(*Session)
+	// fmt.Printf("returning the requester for username=%s subject=%s from the authorizeCode. claims: %+v\n",
+	// 	sess.GetUsername(), sess.GetSubject(), sess.GetJWTClaims().ToMapClaims())
 
 	return rel.Requester, nil
 }

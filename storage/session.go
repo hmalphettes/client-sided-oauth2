@@ -20,7 +20,7 @@
  * @license 	Apache-2.0
  */
 
-package oauth2
+package storage
 
 import (
 	"time"
