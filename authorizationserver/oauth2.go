@@ -15,6 +15,7 @@ import (
 	"github.com/hmalphettes/client-sided-oauth2/storage"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
+	fositeoauth2 "github.com/ory/fosite/handler/oauth2"
 	"github.com/ory/fosite/handler/openid"
 	"github.com/ory/fosite/token/jwt"
 )
@@ -71,6 +72,8 @@ var (
 	// privateKey, _ = rsa.GenerateKey(rand.Reader, 2048)
 	privateKey *rsa.PrivateKey
 	oauth2     fosite.OAuth2Provider
+
+	jwtStrategy *fositeoauth2.DefaultJWTStrategy
 )
 
 func loadPrivateKey(keyFile string) (*rsa.PrivateKey, error) {
@@ -98,11 +101,12 @@ func RegisterHandlers(oauth2ServerAddrVal string, keyFile string) error {
 	// oauth2 = compose.ComposeAllEnabled(config, store, secret, privateKey)
 
 	// Use JWT tokens instead of opaque HMAC
+	jwtStrategy = compose.NewOAuth2JWTStrategy(
+		privateKey,
+		compose.NewOAuth2HMACStrategy(config, []byte("some-super-cool-secret-that-nobody-knows"), nil),
+	)
 	strategy := compose.CommonStrategy{
-		CoreStrategy: compose.NewOAuth2JWTStrategy(
-			privateKey,
-			compose.NewOAuth2HMACStrategy(config, []byte("some-super-cool-secret-that-nobody-knows"), nil),
-		),
+		CoreStrategy:               jwtStrategy,
 		OpenIDConnectTokenStrategy: compose.NewOpenIDConnectStrategy(config, privateKey),
 	}
 	oauth2 = compose.Compose(
@@ -133,6 +137,11 @@ func RegisterHandlers(oauth2ServerAddrVal string, keyFile string) error {
 	// revoke tokens
 	http.HandleFunc("/oauth2/revoke", revokeEndpoint)
 	http.HandleFunc("/oauth2/introspect", introspectionEndpoint)
+
+	// gitlab style
+	http.HandleFunc("/oauth/authorize", authEndpoint)
+	http.HandleFunc("/oauth/token", tokenEndpoint)
+	http.HandleFunc("/api/v4/user", gitlabUserEndpoint)
 
 	return nil
 }

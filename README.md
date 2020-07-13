@@ -34,3 +34,13 @@ cd exampleclientapp && OAUTH2_SERVER_ADDR=https://localhost:3486 PORT=8080 go ru
 Access the client app on http://localhost:8080
 It sends the browser to https://localhost:3846/oauth2/auth?client_id=my-client&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&response_type=token%20id_token&scope=fosite%20openid&state=some-random-state-foobar&nonce=some-random-nonce
 Which returns then the browser to the callback page and then displays the profile of the user according to the Subject of the client cert
+
+# Usage: Mattermost Gitlab SSO
+
+```
+Application ID:     <your-mattermost-url>/gitlab
+Application Secret: foobar
+GitLab Site URL:    https://localhost:3846
+```
+
+Now `Login With Gitlab` will extract the username as the CN of the client certificate and log you into mattermost.

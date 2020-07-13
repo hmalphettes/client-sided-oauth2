@@ -19,10 +19,6 @@ var (
 	oauth2ServerAddr string
 	tlsKeyFile       string
 	tlsCertFile      string
-	// // A valid oauth2 client (check the store) that additionally requests an OpenID Connect id token
-	// clientConf goauth.Config
-	// The same thing (valid oauth2 client) but for using the client credentials grant
-	// appClientConf clientcredentials.Config
 )
 
 func init() {

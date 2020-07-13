@@ -10,16 +10,7 @@ import (
 
 func introspectionEndpoint(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	// user, issuer, err := extractUserIssuer(req.TLS.PeerCertificates)
-	// if err != nil {
-	// 	log.Printf("Error occurred in NewIntrospectionRequest: %+v", err)
-	// 	oauth2.WriteIntrospectionError(rw, err)
-	// 	return
-	// }
-	user := ""
-	issuer := ""
-
-	mySessionData := newSession(user, issuer)
+	mySessionData := newSession("", "")
 	ir, err := oauth2.NewIntrospectionRequest(ctx, req, mySessionData)
 	if err != nil {
 		log.Printf("Error occurred in NewIntrospectionRequest: %+v", err)

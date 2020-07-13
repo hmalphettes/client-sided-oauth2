@@ -14,17 +14,8 @@ func tokenEndpoint(rw http.ResponseWriter, req *http.Request) {
 	// This context will be passed to all methods.
 	ctx := req.Context()
 
-	// user, issuer, err := extractUserIssuer(req.TLS.PeerCertificates)
-	// if err != nil {
-	// 	log.Printf("Error occurred in NewAccessRequest: %+v. req=%+v\n", err, req.URL)
-	// 	oauth2.WriteIntrospectionError(rw, err)
-	// 	return
-	// }
-	user := ""
-	issuer := ""
-
 	// Create an empty session object which will be passed to the request handlers
-	mySessionData := newSession(user, issuer)
+	mySessionData := newSession("", "")
 
 	// This will create an access request object and iterate through the registered TokenEndpointHandlers to validate the request.
 	accessRequest, err := oauth2.NewAccessRequest(ctx, req, mySessionData)
@@ -34,7 +25,7 @@ func tokenEndpoint(rw http.ResponseWriter, req *http.Request) {
 	// * invalid redirect
 	// * ...
 	if err != nil {
-		log.Printf("Error occurred in NewAccessRequest: %+v", err)
+		log.Printf("Error occurred in NewAccessRequest: %+v. req=%+v\n", err, req.URL)
 		oauth2.WriteAccessError(rw, accessRequest, err)
 		return
 	}

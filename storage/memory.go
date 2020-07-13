@@ -23,7 +23,7 @@ package storage
 
 import (
 	"context"
-	"log"
+	"strings"
 	"time"
 
 	"github.com/ory/fosite"
@@ -71,24 +71,24 @@ type StoreAuthorizeCode struct {
 func NewExampleStore() *MemoryStore {
 	return &MemoryStore{
 		IDSessions: make(map[string]fosite.Requester),
-		// Clients: map[string]fosite.Client{
-		// 	"my-client": &fosite.DefaultClient{
-		// 		ID:            "my-client",
-		// 		Secret:        []byte(`$2a$10$IxMdI6d.LIRZPpSfEwNoeu4rY3FhDREsxFJXikcgdRRAStxUlsuEO`), // = "foobar"
-		// 		RedirectURIs:  []string{"http://localhost:3846/callback"},
-		// 		ResponseTypes: []string{"id_token", "code", "token", "id_token token", "code id_token", "code token", "code id_token token"},
-		// 		GrantTypes:    []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
-		// 		Scopes:        []string{"fosite", "openid", "photos", "offline"},
-		// 	},
-		// 	"encoded:client": &fosite.DefaultClient{
-		// 		ID:            "encoded:client",
-		// 		Secret:        []byte(`$2a$10$A7M8b65dSSKGHF0H2sNkn.9Z0hT8U1Nv6OWPV3teUUaczXkVkxuDS`), // = "encoded&password"
-		// 		RedirectURIs:  []string{"http://localhost:3846/callback"},
-		// 		ResponseTypes: []string{"id_token", "code", "token", "id_token token", "code id_token", "code token", "code id_token token"},
-		// 		GrantTypes:    []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
-		// 		Scopes:        []string{"fosite", "openid", "photos", "offline"},
-		// 	},
-		// },
+		Clients:    map[string]fosite.Client{
+			// 	"my-client": &fosite.DefaultClient{
+			// 		ID:            "my-client",
+			// 		Secret:        []byte(`$2a$10$IxMdI6d.LIRZPpSfEwNoeu4rY3FhDREsxFJXikcgdRRAStxUlsuEO`), // = "foobar"
+			// 		RedirectURIs:  []string{"http://localhost:3846/callback"},
+			// 		ResponseTypes: []string{"id_token", "code", "token", "id_token token", "code id_token", "code token", "code id_token token"},
+			// 		GrantTypes:    []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
+			// 		Scopes:        []string{"fosite", "openid", "photos", "offline"},
+			// 	},
+			// 	"encoded:client": &fosite.DefaultClient{
+			// 		ID:            "encoded:client",
+			// 		Secret:        []byte(`$2a$10$A7M8b65dSSKGHF0H2sNkn.9Z0hT8U1Nv6OWPV3teUUaczXkVkxuDS`), // = "encoded&password"
+			// 		RedirectURIs:  []string{"http://localhost:3846/callback"},
+			// 		ResponseTypes: []string{"id_token", "code", "token", "id_token token", "code id_token", "code token", "code id_token token"},
+			// 		GrantTypes:    []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
+			// 		Scopes:        []string{"fosite", "openid", "photos", "offline"},
+			// 	},
+		},
 		// Users: map[string]MemoryUserRelation{
 		// 	"peter": {
 		// 		// This store simply checks for equality, a real storage implementation would obviously use
@@ -126,19 +126,25 @@ func (s *MemoryStore) DeleteOpenIDConnectSession(_ context.Context, authorizeCod
 
 // Try passing the callback as the same value than the id.
 func (s *MemoryStore) GetClient(_ context.Context, id string) (fosite.Client, error) {
-	// cl, ok := s.Clients[id]
-	// if !ok {
-	// 	return nil, fosite.ErrNotFound
-	// }
-	// return cl, nil
-	return &fosite.DefaultClient{
-		ID:            "my-client",
-		Secret:        []byte(`$2a$10$IxMdI6d.LIRZPpSfEwNoeu4rY3FhDREsxFJXikcgdRRAStxUlsuEO`), // = "foobar"
-		RedirectURIs:  []string{id /*"http://localhost:3846/callback"*/},
+	cl, ok := s.Clients[id]
+	if ok {
+		return cl, nil
+	}
+	redirectURIs := []string{id /*"http://localhost:3846/callback"*/}
+	// be nice with gitlab:
+	if strings.HasSuffix(id, "/gitlab") {
+		redirectURIs = []string{strings.TrimSuffix(id, "/gitlab") + "/signup/gitlab/complete", strings.TrimSuffix(id, "/gitlab") + "/login/gitlab/complete"}
+	}
+	cl = &fosite.DefaultClient{
+		ID:            id,
+		Secret:        []byte(`$2a$10$IxMdI6d.LIRZPpSfEwNoeu4rY3FhDREsxFJXikcgdRRAStxUlsuEO`), // = "foobar" we are not even trying to restrict here.
+		RedirectURIs:  redirectURIs,
 		ResponseTypes: []string{"id_token", "code", "token", "id_token token", "code id_token", "code token", "code id_token token"},
-		GrantTypes:    []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"},
+		GrantTypes:    []string{"implicit", "refresh_token", "authorization_code", "password", "client_credentials"}, // could probably restrict a number of use cases
 		Scopes:        []string{"fosite", "openid", "photos", "offline"},
-	}, nil
+	}
+	s.Clients[id] = cl
+	return cl, nil
 }
 
 func (s *MemoryStore) ClientAssertionJWTValid(_ context.Context, jti string) error {
@@ -253,6 +259,7 @@ func (s *MemoryStore) DeleteRefreshTokenSession(_ context.Context, signature str
 }
 
 func (s *MemoryStore) Authenticate(_ context.Context, name string, secret string) error {
+	// If you have made it this far then you are OK: the validation is in the verification of the client certificate
 	// rel, ok := s.Users[name]
 	// if !ok {
 	// 	return fosite.ErrNotFound
@@ -260,7 +267,6 @@ func (s *MemoryStore) Authenticate(_ context.Context, name string, secret string
 	// if rel.Password != secret {
 	// 	return errors.New("Invalid credentials")
 	// }
-	log.Printf("Authenticate called for name=%s with secret=%s", name, secret)
 	return nil
 }
 

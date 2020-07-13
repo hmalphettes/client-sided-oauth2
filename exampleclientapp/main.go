@@ -45,8 +45,8 @@ func init() {
 		RedirectURL:  appServerAddr + "/callback",
 		Scopes:       []string{"photos", "openid", "offline"},
 		Endpoint: goauth.Endpoint{
-			TokenURL: oauth2ServerAddr + "/oauth2/token",
-			AuthURL:  oauth2ServerAddr + "/oauth2/auth",
+			TokenURL: oauth2ServerAddr + "/oauth/token",
+			AuthURL:  oauth2ServerAddr + "/oauth/authorize",
 		},
 	}
 
@@ -54,7 +54,7 @@ func init() {
 		ClientID:     appServerAddr + "/callback",
 		ClientSecret: "foobar",
 		Scopes:       []string{"fosite"},
-		TokenURL:     oauth2ServerAddr + "/oauth2/token",
+		TokenURL:     oauth2ServerAddr + "/oauth/token",
 	}
 }
 
