@@ -1,21 +1,10 @@
 # Client-Sided-Oauth - a stateless oauth provider that extracts a user profile from a client cert
 
-Exposes an oauth2 Identity Provider that athenticates a user according to a client certificate.
+Exposes an oauth2 Identity Provider that authenticates a user according to a client certificate.
 
 Following the https://github.com/ory/fosite-example and using the same license.
 Copyright will be marked when files are copied from ory/fosite-example
 
-# Notes on making the client side cert for development purpose
-
-https://gist.github.com/mtigas/952344
-I used the ec algos.
-
-```
-openssl x509 -req -in localhost.csr -CA ca.pem -CAkey ca.key -CAcreateserial -out localhost.crt -days 500 -sha256
-openssl x509 -in localhost.crt -text -noout
-```
-
-Install the pfx in the OS: https://support.globalsign.com/digital-certificates/digital-certificate-installation/install-pfx-pkcs12-file-mac-osx-safari-chrome
 
 # Usage
 
@@ -44,3 +33,15 @@ GitLab Site URL:    https://localhost:3846
 ```
 
 Now `Login With Gitlab` will extract the username as the CN of the client certificate and log you into mattermost.
+
+# Notes on making the client side cert for development purpose
+
+https://gist.github.com/mtigas/952344
+I used the ec algos.
+
+```
+openssl x509 -req -in localhost.csr -CA ca.pem -CAkey ca.key -CAcreateserial -out localhost.crt -days 500 -sha256
+openssl x509 -in localhost.crt -text -noout
+```
+
+Install the pfx in the OS: https://support.globalsign.com/digital-certificates/digital-certificate-installation/install-pfx-pkcs12-file-mac-osx-safari-chrome
