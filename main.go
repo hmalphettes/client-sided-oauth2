@@ -6,6 +6,8 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"fmt"
 	"log"
 	"net/http"
@@ -54,14 +56,63 @@ func main() {
 
 	http.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
 		clientCerts := req.TLS.PeerCertificates
-		var user string
+		var user, emailAddress, fullDN string
+
 		for _, clientCert := range clientCerts {
 			user = clientCert.Subject.CommonName
+
 			fmt.Printf("Hello your username according to the client cert %s\n", user)
 			fmt.Printf("Issuer %s\n", clientCert.Issuer)
+
+			// golang does not decode the DC and userid
+			// we get to do that ourselves: https://stackoverflow.com/questions/39125873/golang-subject-dn-from-x509-cert/50640119#50640119
+			var subject pkix.RDNSequence
+			if _, err := asn1.Unmarshal(clientCert.RawSubject, &subject); err != nil {
+				fmt.Printf("WARN: unable to parse the RawSubject %s\n", err.Error())
+				continue
+			}
+			fmt.Printf("Subject %s\n", subject.String())
+			userInfo, err := authorizationserver.NewClientCertUserInfo(clientCert)
+			fmt.Printf("userInfo %+v. err=%v\n", userInfo, err)
+			emailAddress = userInfo.EmailAddress
+			fullDN = userInfo.FullDN
 			break
 		}
-		rw.Write([]byte(fmt.Sprintf(`Hello '%s', nothing to see here %s`, user, oauth2ServerAddr)))
+		rw.Write([]byte(fmt.Sprintf(`<h1>Welcome to the client-sided-oauth of %s</h1>
+		<h2>What is this?</h2>
+		<h4>Oauth2 Identity Provider via a Client Certificate</h4>
+		<p>This is an oauth2 server with support for an "Authorization Code Grant Flow".<br/>It uses a full fledged oauth2 SDK and may support other flows.</p>
+		<p>User authentication and identity relies on a client certificate configure on the browser and passed to the server</p>
+		<p>The client certificate is derived into a user profile and encoded into a JWT token that is used as the access token.</p>
+		<p>There is no standard for a user record and there is no standard to deriving a user record from a client certificate.</p>
+		
+		<p>Feel free to fork this and suggest something else.</p>
+		<h4>Mattermost Gitlab Authentication Side Car</h4>
+		<p>
+			The scenario primarily targeted here is to be a Gitlab authentication provider for Mattermost.
+		</p>
+		<p>
+			To configure Mattermost to take advantage of this:
+			<ol>
+				<li>Browse to the System Console and select "Gitlab"</li>
+				<li>Application ID: '<your-mattermost-url>/gitlab'</li>
+				<li>Application Secret Key: 'foobar' - it is hardcoded at the moment</li>
+				<li>Gitlab site URL: %s</li>
+			</ol>
+		</p>
+		<p>
+			There is no registration of a client ID and redirection URLs.
+			This server derives the callbacks according to the Application ID.
+			All other parameters are hardcoded.
+		</p>
+
+		<h2>Your infomation shared to us via a client certificate</h2>
+		<p>Hello '%s' - %s - %s</p>
+		<ul>
+			<li><a href="debug/clientcert">Check the client certs passed here</a></li>
+			<li><a href="debug/clientcertuser">Check the gitlab user derived from the selected client cert</a></li>
+		</ul>
+		`, oauth2ServerAddr, oauth2ServerAddr, user, emailAddress, fullDN)))
 	})
 
 	server := &http.Server{

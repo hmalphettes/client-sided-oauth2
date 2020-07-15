@@ -20,6 +20,8 @@ import (
 	"github.com/ory/fosite/token/jwt"
 )
 
+const useJWT = true
+
 // fosite requires four parameters for the server to get up and running:
 // 1. config - for any enforcement you may desire, you can do this using `compose.Config`. You like PKCE, enforce it!
 // 2. store - no auth service is generally useful unless it can remember clients and users.
@@ -98,38 +100,41 @@ func RegisterHandlers(oauth2ServerAddrVal string, keyFile string) error {
 		return err
 	}
 	// Build a fosite instance with all OAuth2 and OpenID Connect handlers enabled, plugging in our configurations as specified above.
-	// oauth2 = compose.ComposeAllEnabled(config, store, secret, privateKey)
+	if !useJWT {
+		// currently not fully supported (need to change gitlab_user to resolve the user info from the opaque HMAC token rather than decode the JWT)
+		oauth2 = compose.ComposeAllEnabled(config, store, secret, privateKey)
+	} else {
+		// Use JWT tokens instead of the opaque HMAC
+		jwtStrategy = compose.NewOAuth2JWTStrategy(
+			privateKey,
+			compose.NewOAuth2HMACStrategy(config, []byte("some-super-cool-secret-that-nobody-knows"), nil),
+		)
+		strategy := compose.CommonStrategy{
+			CoreStrategy:               jwtStrategy,
+			OpenIDConnectTokenStrategy: compose.NewOpenIDConnectStrategy(config, privateKey),
+		}
+		oauth2 = compose.Compose(
+			config,
+			store,
+			strategy,
+			nil,
 
-	// Use JWT tokens instead of opaque HMAC
-	jwtStrategy = compose.NewOAuth2JWTStrategy(
-		privateKey,
-		compose.NewOAuth2HMACStrategy(config, []byte("some-super-cool-secret-that-nobody-knows"), nil),
-	)
-	strategy := compose.CommonStrategy{
-		CoreStrategy:               jwtStrategy,
-		OpenIDConnectTokenStrategy: compose.NewOpenIDConnectStrategy(config, privateKey),
+			compose.OAuth2AuthorizeExplicitFactory,
+			compose.OAuth2AuthorizeImplicitFactory,
+			compose.OAuth2ClientCredentialsGrantFactory,
+			compose.OAuth2RefreshTokenGrantFactory,
+			compose.OAuth2ResourceOwnerPasswordCredentialsFactory,
+
+			compose.OpenIDConnectExplicitFactory,
+			compose.OpenIDConnectImplicitFactory,
+			compose.OpenIDConnectHybridFactory,
+			compose.OpenIDConnectRefreshFactory,
+
+			compose.OAuth2TokenIntrospectionFactory,
+
+			compose.OAuth2PKCEFactory,
+		)
 	}
-	oauth2 = compose.Compose(
-		config,
-		store,
-		strategy,
-		nil,
-
-		compose.OAuth2AuthorizeExplicitFactory,
-		compose.OAuth2AuthorizeImplicitFactory,
-		compose.OAuth2ClientCredentialsGrantFactory,
-		compose.OAuth2RefreshTokenGrantFactory,
-		compose.OAuth2ResourceOwnerPasswordCredentialsFactory,
-
-		compose.OpenIDConnectExplicitFactory,
-		compose.OpenIDConnectImplicitFactory,
-		compose.OpenIDConnectHybridFactory,
-		compose.OpenIDConnectRefreshFactory,
-
-		compose.OAuth2TokenIntrospectionFactory,
-
-		compose.OAuth2PKCEFactory,
-	)
 	// Set up oauth2 endpoints. You could also use gorilla/mux or any other router.
 	http.HandleFunc("/oauth2/auth", authEndpoint)
 	http.HandleFunc("/oauth2/token", tokenEndpoint)
@@ -138,10 +143,14 @@ func RegisterHandlers(oauth2ServerAddrVal string, keyFile string) error {
 	http.HandleFunc("/oauth2/revoke", revokeEndpoint)
 	http.HandleFunc("/oauth2/introspect", introspectionEndpoint)
 
-	// gitlab style
+	// gitlab style as expected by Mattermost
 	http.HandleFunc("/oauth/authorize", authEndpoint)
 	http.HandleFunc("/oauth/token", tokenEndpoint)
 	http.HandleFunc("/api/v4/user", gitlabUserEndpoint)
+
+	// Debugging endpoints
+	http.HandleFunc("/debug/clientcert", debugClientCertsEndpoint)
+	http.HandleFunc("/debug/clientcertuser", debugClientCertGitlabUserEndpoint)
 
 	return nil
 }
@@ -157,7 +166,7 @@ func RegisterHandlers(oauth2ServerAddrVal string, keyFile string) error {
 //
 //  session = new(fosite.DefaultSession)
 // func newSession(user, issuer string) *openid.DefaultSession {
-func newSession(user, issuer string) *storage.Session {
+func newSession(user, email, issuer string) *storage.Session {
 	// For additional claims: https://www.iana.org/assignments/jwt/jwt.xhtml
 	opendidSession := &openid.DefaultSession{
 		Claims: &jwt.IDTokenClaims{
@@ -168,6 +177,9 @@ func newSession(user, issuer string) *storage.Session {
 			IssuedAt:    time.Now(),
 			RequestedAt: time.Now(),
 			AuthTime:    time.Now(),
+			Extra: map[string]interface{}{
+				email: email,
+			},
 		},
 		Headers: &jwt.Headers{
 			Extra: make(map[string]interface{}),
@@ -178,7 +190,6 @@ func newSession(user, issuer string) *storage.Session {
 	// return opendidSession
 	return &storage.Session{
 		DefaultSession: opendidSession,
-		// ClientID: ,
-		Extra: map[string]interface{}{},
+		Extra:          map[string]interface{}{},
 	}
 }

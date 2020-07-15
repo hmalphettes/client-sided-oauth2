@@ -15,7 +15,7 @@ func tokenEndpoint(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
 	// Create an empty session object which will be passed to the request handlers
-	mySessionData := newSession("", "")
+	mySessionData := newSession("", "", "")
 
 	// This will create an access request object and iterate through the registered TokenEndpointHandlers to validate the request.
 	accessRequest, err := oauth2.NewAccessRequest(ctx, req, mySessionData)

@@ -5,7 +5,6 @@ package authorizationserver
 
 import (
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -49,7 +48,7 @@ func authEndpoint(rw http.ResponseWriter, req *http.Request) {
 	// 	`, requestedScopes)))
 	// 	return
 	// }
-	user, issuer, err := extractUserIssuer(req.TLS.PeerCertificates)
+	user, email, issuer, err := extractUserEmailIssuer(req.TLS.PeerCertificates)
 
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusForbidden)
@@ -64,7 +63,7 @@ func authEndpoint(rw http.ResponseWriter, req *http.Request) {
 	fmt.Printf("Making a new session for '%s'\n", user)
 
 	// Now that the user is authorized, we set up a session:
-	mySessionData := newSession(user, issuer)
+	mySessionData := newSession(user, email, issuer)
 
 	// When using the HMACSHA strategy you must use something that implements the HMACSessionContainer.
 	// It brings you the power of overriding the default values.
@@ -106,10 +105,14 @@ func authEndpoint(rw http.ResponseWriter, req *http.Request) {
 	oauth2.WriteAuthorizeResponse(rw, ar, response)
 }
 
-func extractUserIssuer(clientCerts []*x509.Certificate) (string, string, error) {
+func extractUserEmailIssuer(clientCerts []*x509.Certificate) (string, string, string, error) {
 	for _, clientCert := range clientCerts {
 		subject := clientCert.Subject
-		return subject.CommonName, clientCert.Issuer.CommonName, nil
+		info, err := NewClientCertUserInfo(clientCert)
+		if err != nil {
+			return "", "", "", err
+		}
+		return subject.CommonName, info.EmailAddress, clientCert.Issuer.CommonName, nil
 	}
-	return "", "", errors.New("No client cert found")
+	return "", "", "", fmt.Errorf("No client cert found")
 }

@@ -10,7 +10,7 @@ import (
 
 func introspectionEndpoint(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	mySessionData := newSession("", "")
+	mySessionData := newSession("", "", "")
 	ir, err := oauth2.NewIntrospectionRequest(ctx, req, mySessionData)
 	if err != nil {
 		log.Printf("Error occurred in NewIntrospectionRequest: %+v", err)
