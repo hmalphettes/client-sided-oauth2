@@ -60,7 +60,7 @@ func init() {
 
 func main() {
 	// ### oauth2 client ###
-	http.HandleFunc("/", oauth2client.HomeHandler(clientConf)) // show some links on the index
+	http.HandleFunc("/", oauth2client.HomeHandler(clientConf, oauth2ServerAddr)) // show some links on the index
 
 	// the following handlers are oauth2 consumers
 	http.HandleFunc("/client", oauth2client.ClientEndpoint(appClientConf)) // complete a client credentials flow

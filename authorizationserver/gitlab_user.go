@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/hmalphettes/client-sided-oauth2/storage"
 )
 
 // These fields are the ones that Mattermost expects
@@ -36,7 +37,7 @@ func makeGitlabUser(claims jwt.MapClaims) (*GitLabUser, error) {
 
 // This is purely for debugging
 func makeGitlabUserFromCert(clientCert *x509.Certificate) (*GitLabUser, error) {
-	userInfo, err := NewClientCertUserInfo(clientCert)
+	userInfo, err := storage.NewClientCertUserInfo(clientCert)
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +75,27 @@ func gitlabUserEndpoint(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 	rw.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(rw).Encode(gitLabUser)
+}
+
+// Displays the ClientCerts Info
+func debugClientCertsEndpoint(rw http.ResponseWriter, req *http.Request) {
+	rw.Header().Set("Content-Type", "application/json")
+	for _, clientCert := range req.TLS.PeerCertificates {
+		userInfo, err := storage.NewClientCertUserInfo(clientCert)
+		if err != nil {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write([]byte(fmt.Sprintf(`Error parsing the client cert: %s`, err)))
+			return
+		}
+
+		rw.WriteHeader(http.StatusOK)
+		rw.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(rw).Encode(userInfo)
+		return
+	}
+	rw.WriteHeader(http.StatusBadRequest)
+	rw.Write([]byte(`No Client Certificate`))
+	return
 }
 
 // Generate a GitlabUser from the Client Certs. Check what kind of user gets identified from the clientcert

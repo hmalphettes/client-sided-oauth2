@@ -1,13 +1,11 @@
-package authorizationserver
+package storage
 
 import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 )
@@ -88,27 +86,6 @@ func DeriveEmailAddress(clientcertInfo *ClientCertUserInfo) string {
 	return ""
 }
 
-// Displays the ClientCerts Info
-func debugClientCertsEndpoint(rw http.ResponseWriter, req *http.Request) {
-	rw.Header().Set("Content-Type", "application/json")
-	for _, clientCert := range req.TLS.PeerCertificates {
-		userInfo, err := NewClientCertUserInfo(clientCert)
-		if err != nil {
-			rw.WriteHeader(http.StatusBadRequest)
-			rw.Write([]byte(fmt.Sprintf(`Error parsing the client cert: %s`, err)))
-			return
-		}
-
-		rw.WriteHeader(http.StatusOK)
-		rw.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(rw).Encode(userInfo)
-		return
-	}
-	rw.WriteHeader(http.StatusBadRequest)
-	rw.Write([]byte(`No Client Certificate`))
-	return
-}
-
 func NewClientCertUserInfo(clientCert *x509.Certificate) (*ClientCertUserInfo, error) {
 	// golang does not decode the DC and userid
 	// we get to do that ourselves: https://stackoverflow.com/questions/39125873/golang-subject-dn-from-x509-cert/50640119#50640119
@@ -178,4 +155,15 @@ func NewClientCertUserInfo(clientCert *x509.Certificate) (*ClientCertUserInfo, e
 		clientcertInfo.EmailAddress = DeriveEmailAddress(clientcertInfo)
 	}
 	return clientcertInfo, nil
+}
+
+func ExtractUserEmailIssuer(clientCerts []*x509.Certificate) (string, string, string, error) {
+	for _, clientCert := range clientCerts {
+		info, err := NewClientCertUserInfo(clientCert)
+		if err != nil {
+			return "", "", "", err
+		}
+		return info.CommonName, info.EmailAddress, clientCert.Issuer.CommonName, nil
+	}
+	return "", "", "", fmt.Errorf("No client cert found")
 }

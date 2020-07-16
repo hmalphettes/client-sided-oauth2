@@ -4,10 +4,11 @@
 package authorizationserver
 
 import (
-	"crypto/x509"
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/hmalphettes/client-sided-oauth2/storage"
 )
 
 func authEndpoint(rw http.ResponseWriter, req *http.Request) {
@@ -48,7 +49,7 @@ func authEndpoint(rw http.ResponseWriter, req *http.Request) {
 	// 	`, requestedScopes)))
 	// 	return
 	// }
-	user, email, issuer, err := extractUserEmailIssuer(req.TLS.PeerCertificates)
+	user, email, issuer, err := storage.ExtractUserEmailIssuer(req.TLS.PeerCertificates)
 
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusForbidden)
@@ -103,15 +104,4 @@ func authEndpoint(rw http.ResponseWriter, req *http.Request) {
 
 	// Last but not least, send the response!
 	oauth2.WriteAuthorizeResponse(rw, ar, response)
-}
-
-func extractUserEmailIssuer(clientCerts []*x509.Certificate) (string, string, string, error) {
-	for _, clientCert := range clientCerts {
-		info, err := NewClientCertUserInfo(clientCert)
-		if err != nil {
-			return "", "", "", err
-		}
-		return info.CommonName, info.EmailAddress, clientCert.Issuer.CommonName, nil
-	}
-	return "", "", "", fmt.Errorf("No client cert found")
 }

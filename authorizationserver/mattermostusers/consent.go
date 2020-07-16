@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/hmalphettes/client-sided-oauth2/storage"
 	mattermost "github.com/mattermost/platform/model"
 )
 
@@ -58,9 +59,8 @@ This endpoint handles the following cases:
 */
 func consentGetEndpoint(rw http.ResponseWriter, req *http.Request) {
 	// This context will be passed to all methods.
-	ctx := req.Context()
-
-	user, email, issuer, err := extractUserEmailIssuer(req.TLS.PeerCertificates)
+	// ctx := req.Context()
+	_, email, _, _ := storage.ExtractUserEmailIssuer(req.TLS.PeerCertificates)
 
 	if email == "" {
 		consentNoClientCert(rw, req)
@@ -68,6 +68,11 @@ func consentGetEndpoint(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	mmUser, err := LookupUser(downstreamServer, email)
+	if err != nil {
+		rw.WriteHeader(http.StatusServiceUnavailable)
+		rw.Write([]byte(fmt.Sprintf(`Failed to lookup the user on % with %s`, downstreamServer, email)))
+		return
+	}
 	if mmUser == nil {
 		consentNoSuchUserCreateNewOrLinkExisting(email, rw, req)
 		return
@@ -107,7 +112,7 @@ func consentLoginWithEmailAddress(mmUser *mattermost.User, rw http.ResponseWrite
 </p>
 </body>
 </html>
-`, mmUser.Name, mmUser.EmailAddress)))
+`, mmUser.Username, mmUser.Email)))
 }
 
 func consentNoSuchUserCreateNewOrLinkExisting(emailWithoutAccount string, rw http.ResponseWriter, req *http.Request) {
@@ -134,7 +139,7 @@ Login and link an existing account to this email address:
 </p>
 </body>
 </html>
-`, email, loginForm)))
+`, emailWithoutAccount, loginForm)))
 }
 
 /**
@@ -144,8 +149,6 @@ Understand when to:
 - login and update the email address of a user.
 */
 func consentPostEndpoint(rw http.ResponseWriter, req *http.Request) {
-	// This context will be passed to all methods.
-	ctx := req.Context()
 	err := req.ParseForm()
 	if err != nil {
 		rw.WriteHeader(http.StatusBadRequest)

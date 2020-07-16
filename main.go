@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/hmalphettes/client-sided-oauth2/authorizationserver"
+	"github.com/hmalphettes/client-sided-oauth2/storage"
 )
 
 var (
@@ -30,8 +31,8 @@ func init() {
 	oauth2ServerAddr = os.Getenv("OAUTH2_SERVER_ADDR")
 	if oauth2ServerAddr == "" {
 		oauth2ServerAddr = "localhost:3846"
-	} else if strings.HasPrefix("https://", oauth2ServerAddr) {
-		oauth2ServerAddr = strings.TrimPrefix("https://", oauth2ServerAddr)
+	} else if strings.HasPrefix(oauth2ServerAddr, "https://") {
+		oauth2ServerAddr = strings.TrimPrefix(oauth2ServerAddr, "https://")
 	}
 	tlsKeyFile = os.Getenv("OAUTH2_TLS_KEY")
 	if tlsKeyFile == "" {
@@ -45,14 +46,20 @@ func init() {
 }
 
 func main() {
-	_, err := tls.LoadX509KeyPair(tlsCertFile, tlsKeyFile)
-	if err != nil {
-		log.Fatalf("Unable to open the tls files tlsCertFile=%s; tlsKeyFile=%s\n", tlsCertFile, tlsKeyFile)
-		return
+	certFiles := strings.Split(tlsCertFile, ",")
+	keyFiles := strings.Split(tlsKeyFile, ",")
+	loadedTLSCerts := []tls.Certificate{}
+	for i, certFile := range certFiles {
+		loadedCert, err := tls.LoadX509KeyPair(certFile, keyFiles[i])
+		if err != nil {
+			log.Fatalf("Unable to open the tls files tlsCertFile=%s; tlsKeyFile=%s: %s\n", certFile, keyFiles[i], err.Error())
+			return
+		}
+		loadedTLSCerts = append(loadedTLSCerts, loadedCert)
 	}
 
 	// ### oauth2 server ###
-	err = authorizationserver.RegisterHandlers(oauth2ServerAddr, tlsKeyFile) // the authorization server (fosite)
+	err := authorizationserver.RegisterHandlers(oauth2ServerAddr, keyFiles[0]) // the authorization server (fosite)
 	if err != nil {
 		log.Fatal(err.Error())
 		return
@@ -76,21 +83,68 @@ func main() {
 		}
 		proxy := &httputil.ReverseProxy{Director: director}
 
+		if os.Getenv("DOWNSTREAM_SERVER_TLS_INSECURE_SKIP_VERIFY") != "" && origin.Scheme == "https" {
+			proxy.Transport = &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+		}
+
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			proxy.ServeHTTP(w, r)
 		})
 	}
 
+	tlsConfig := &tls.Config{
+		ClientAuth:   tls.RequestClientCert,
+		MinVersion:   tls.VersionTLS12,
+		Certificates: loadedTLSCerts,
+	}
+	certNames := registerHostnamesOnWildcardCerts(tlsConfig)
+
+	listenAddr := oauth2ServerAddr
+
+	if len(certNames) > 1 {
+		listenAddr = "0.0.0.0:" + strings.Split(listenAddr, ":")[1]
+	}
 	server := &http.Server{
-		TLSConfig: &tls.Config{
-			ClientAuth: tls.RequestClientCert,
-			MinVersion: tls.VersionTLS12,
-		},
-		Addr: oauth2ServerAddr,
+		TLSConfig: tlsConfig,
+		Addr:      listenAddr,
 	}
 
-	fmt.Printf("The client-sided-oauth2 identity provider is running on https://%s\n", oauth2ServerAddr)
-	log.Fatal(server.ListenAndServeTLS(tlsCertFile, tlsKeyFile))
+	fmt.Printf("The client-sided-oauth2 identity provider is running on https://%s and listening on %s\n", oauth2ServerAddr, listenAddr)
+	if oauth2ServerAddr != listenAddr {
+		fmt.Printf("  It is listening on %s\n", listenAddr)
+	}
+	if downstreamAddr != "" {
+		fmt.Printf("  And also reverse-proxying to %s\n", downstreamAddr)
+	}
+	log.Fatal(server.ListenAndServeTLS("", ""))
+}
+
+func registerHostnamesOnWildcardCerts(tlsConfig *tls.Config) []string {
+	// load the certs etc:
+	tlsConfig.BuildNameToCertificate()
+
+	for _, hostname := range strings.Split(os.Getenv("WILDCARD_HOSTNAMES"), ",") {
+		// foo.wildcarddomain.example => wildcarddomain.example
+		first := strings.Split(hostname, ".")[0]
+		domain := strings.TrimPrefix(hostname, first)
+		fmt.Println(first + " - " + domain)
+		cert := tlsConfig.NameToCertificate["*"+domain] // *.wildcarddomain.example
+		if cert == nil {
+			fmt.Printf("WARNING: Cant find a wildcard cert for %s\n", hostname)
+		} else {
+			tlsConfig.NameToCertificate[hostname] = cert
+		}
+	}
+
+	certNames := []string{}
+	for name := range tlsConfig.NameToCertificate {
+		certNames = append(certNames, name)
+	}
+	fmt.Printf("There are %d hostnames to TLS certificates. Expecting to receive requests on %s.\n", len(certNames), strings.Join(certNames, ", "))
+
+	return certNames
 }
 
 func welcomeEndpoint(rw http.ResponseWriter, req *http.Request) {
@@ -111,7 +165,7 @@ func welcomeEndpoint(rw http.ResponseWriter, req *http.Request) {
 			continue
 		}
 		fmt.Printf("Subject %s\n", subject.String())
-		userInfo, err := authorizationserver.NewClientCertUserInfo(clientCert)
+		userInfo, err := storage.NewClientCertUserInfo(clientCert)
 		fmt.Printf("userInfo %+v. err=%v\n", userInfo, err)
 		emailAddress = userInfo.EmailAddress
 		fullDN = userInfo.FullDN
