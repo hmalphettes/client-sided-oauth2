@@ -11,7 +11,7 @@ Copyright will be marked when files are copied from ory/fosite-example
 Run the oauth2 server:
 
 ```
-OAUTH2_SERVER_ADDR=https://localhost:3486 OAUTH2_TLS_KEY=./keys/localhost.key OAUTH2_TLS_CRT=./keys/localhost.crt go run main.go
+OAUTH2_SERVER_ADDR=https://localhost:3486 OAUTH2_TLS_KEY=./keys/localhost.key OAUTH2_TLS_CRT=./keys/localhost.crt DOWNSTREAM_SERVER_ADDR=http://localhost:8080 go run main.go
 ```
 
 Run the example client application:
@@ -33,6 +33,12 @@ GitLab Site URL:    https://localhost:3846
 ```
 
 Now `Login With Gitlab` will extract the username as the CN of the client certificate and log you into mattermost.
+
+Also if you want this server to take care of the TLS termination and run mattermost on `http:8065`:
+
+```
+DOWNSTREAM_SERVER_ADDR=http://localhost:8065 go run main.go
+```
 
 # Notes on making the client side cert for development purpose
 

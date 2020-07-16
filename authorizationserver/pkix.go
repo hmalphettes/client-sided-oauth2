@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -79,6 +80,10 @@ func DeriveEmailAddress(clientcertInfo *ClientCertUserInfo) string {
 		} else if clientcertInfo.CommonName != "" {
 			return clientcertInfo.CommonName + "@" + strings.Join(clientcertInfo.DCs, ".")
 		}
+	}
+	defaultEmailDomain := os.Getenv("DEFAULT_EMAIL_DOMAIN")
+	if defaultEmailDomain != "" {
+		return clientcertInfo.CommonName + "@" + defaultEmailDomain
 	}
 	return ""
 }

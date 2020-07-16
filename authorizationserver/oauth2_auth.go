@@ -107,12 +107,11 @@ func authEndpoint(rw http.ResponseWriter, req *http.Request) {
 
 func extractUserEmailIssuer(clientCerts []*x509.Certificate) (string, string, string, error) {
 	for _, clientCert := range clientCerts {
-		subject := clientCert.Subject
 		info, err := NewClientCertUserInfo(clientCert)
 		if err != nil {
 			return "", "", "", err
 		}
-		return subject.CommonName, info.EmailAddress, clientCert.Issuer.CommonName, nil
+		return info.CommonName, info.EmailAddress, clientCert.Issuer.CommonName, nil
 	}
 	return "", "", "", fmt.Errorf("No client cert found")
 }

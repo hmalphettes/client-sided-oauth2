@@ -26,7 +26,7 @@ func makeGitlabUser(claims jwt.MapClaims) (*GitLabUser, error) {
 	user := claims["sub"].(string)
 	email := claims["email"].(string)
 	return &GitLabUser{
-		ID:       123,
+		ID:       1,
 		Username: user,
 		Login:    user,
 		Email:    email,

@@ -76,28 +76,6 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-/*
-func HomeHandler(c goauth.Config) func(rw http.ResponseWriter, req *http.Request) {
-	return func(rw http.ResponseWriter, req *http.Request) {
-		if req.URL.Path != "/" {
-			// The "/" pattern matches everything, so we need to check that
-			// we're at the root here.
-			return
-		}
-		redirectURL := url.QueryEscape(appServerAddr + "/callback")
-
-		rw.Write([]byte(fmt.Sprintf(`
-		<p>Obtain an access token with</p>
-		<ul>
-			<li>
-				<a href="%s">Implicit grant (with OpenID Connect)</a>
-			</li>
-		</ul>`,
-			oauth2ServerAddr+"/oauth2/auth?client_id="+redirectURL+"&redirect_uri="+redirectURL+"&response_type=token&scope=fosite%20openid&state=some-random-state-foobar&nonce=some-random-nonce",
-		)))
-	}
-}*/
-
 type session struct {
 	User string
 }

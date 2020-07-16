@@ -135,18 +135,16 @@ func RegisterHandlers(oauth2ServerAddrVal string, keyFile string) error {
 			compose.OAuth2PKCEFactory,
 		)
 	}
+
 	// Set up oauth2 endpoints. You could also use gorilla/mux or any other router.
-	http.HandleFunc("/oauth2/auth", authEndpoint)
-	http.HandleFunc("/oauth2/token", tokenEndpoint)
-
-	// revoke tokens
-	http.HandleFunc("/oauth2/revoke", revokeEndpoint)
-	http.HandleFunc("/oauth2/introspect", introspectionEndpoint)
-
 	// gitlab style as expected by Mattermost
 	http.HandleFunc("/oauth/authorize", authEndpoint)
 	http.HandleFunc("/oauth/token", tokenEndpoint)
 	http.HandleFunc("/api/v4/user", gitlabUserEndpoint)
+
+	// revoke tokens
+	http.HandleFunc("/oauth/revoke", revokeEndpoint)
+	http.HandleFunc("/oauth/introspect", introspectionEndpoint)
 
 	// Debugging endpoints
 	http.HandleFunc("/debug/clientcert", debugClientCertsEndpoint)

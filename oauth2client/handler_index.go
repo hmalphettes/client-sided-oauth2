@@ -8,7 +8,7 @@ import (
 	goauth "golang.org/x/oauth2"
 )
 
-func HomeHandler(c goauth.Config) func(rw http.ResponseWriter, req *http.Request) {
+func HomeHandler(c goauth.Config, oauth2ServerAddr string) func(rw http.ResponseWriter, req *http.Request) {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		if req.URL.Path != "/" {
 			// The "/" pattern matches everything, so we need to check that
@@ -61,9 +61,9 @@ func HomeHandler(c goauth.Config) func(rw http.ResponseWriter, req *http.Request
 		</script>`,
 			c.AuthCodeURL("some-random-state-foobar")+"&nonce=some-random-nonce",
 			c.AuthCodeURL("some-random-state-foobar")+"&nonce=some-random-nonce&code_challenge="+pkceCodeChallenge+"&code_challenge_method=S256",
-			"http://localhost:3846/oauth2/auth?client_id="+redirectURL+"&redirect_uri=http%3A%2F%2Flocalhost%3A3846%2Fcallback&response_type=token%20id_token&scope=fosite%20openid&state=some-random-state-foobar&nonce=some-random-nonce",
+			oauth2ServerAddr+"/oauth/authorize?client_id="+redirectURL+"&redirect_uri="+redirectURL+"&response_type=token%20id_token&scope=fosite%20openid&state=some-random-state-foobar&nonce=some-random-nonce",
 			c.AuthCodeURL("some-random-state-foobar")+"&nonce=some-random-nonce",
-			"/oauth2/auth?client_id=my-client&scope=fosite&response_type=123&redirect_uri=http://localhost:3846/callback",
+			"/oauth2/auth?client_id=my-client&scope=fosite&response_type=123&redirect_uri="+redirectURL,
 		)))
 	}
 }
