@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/hmalphettes/client-sided-oauth2/storage"
@@ -24,10 +26,35 @@ type GitLabUser struct {
 
 func makeGitlabUser(claims jwt.MapClaims) (*GitLabUser, error) {
 	// TODO: connect to the mattermost database and do match the sub to the actual user or create it.
-	user := claims["sub"].(string)
-	email := claims["email"].(string)
+	email := claims["sub"].(string)
+	user := strings.Split(email, "@")[0]
+	fmt.Printf("Serving a Gitlab user for %s\n", email)
+	var id int64
+	idA, err := strconv.Atoi(user)
+	if err != nil {
+		id = time.Now().Unix()
+	} else {
+		id = int64(idA)
+	}
+
+	if mattermostServer != "" {
+		mmUser, err := LookupUser(email)
+		if err != nil {
+			return nil, err
+		}
+		if mmUser != nil {
+			return &GitLabUser{
+				ID:       id,
+				Username: mmUser.Username,
+				Login:    mmUser.Username,
+				Email:    email,
+				Name:     mmUser.Username,
+			}, nil
+		}
+	}
+
 	return &GitLabUser{
-		ID:       1,
+		ID:       id,
 		Username: user,
 		Login:    user,
 		Email:    email,
@@ -37,12 +64,21 @@ func makeGitlabUser(claims jwt.MapClaims) (*GitLabUser, error) {
 
 // This is purely for debugging
 func makeGitlabUserFromCert(clientCert *x509.Certificate) (*GitLabUser, error) {
+	fmt.Println("makeGitlabUserFromCert is called")
 	userInfo, err := storage.NewClientCertUserInfo(clientCert)
 	if err != nil {
 		return nil, err
 	}
+	user := strings.Split(userInfo.EmailAddress, "@")[0]
+	var id int64
+	idA, err := strconv.Atoi(user)
+	if err != nil {
+		id = time.Now().Unix()
+	} else {
+		id = int64(idA)
+	}
 	return &GitLabUser{
-		ID:       123,
+		ID:       id,
 		Username: userInfo.CommonName,
 		Login:    userInfo.CommonName,
 		Email:    userInfo.EmailAddress,
@@ -79,6 +115,7 @@ func gitlabUserEndpoint(rw http.ResponseWriter, req *http.Request) {
 
 // Displays the ClientCerts Info
 func debugClientCertsEndpoint(rw http.ResponseWriter, req *http.Request) {
+	fmt.Println("debugClientCertsEndpoint is called")
 	rw.Header().Set("Content-Type", "application/json")
 	for _, clientCert := range req.TLS.PeerCertificates {
 		userInfo, err := storage.NewClientCertUserInfo(clientCert)
@@ -100,6 +137,7 @@ func debugClientCertsEndpoint(rw http.ResponseWriter, req *http.Request) {
 
 // Generate a GitlabUser from the Client Certs. Check what kind of user gets identified from the clientcert
 func debugClientCertGitlabUserEndpoint(rw http.ResponseWriter, req *http.Request) {
+	fmt.Println("debugClientCertGitlabUserEndpoint is called")
 	rw.Header().Set("Content-Type", "application/json")
 	for _, clientCert := range req.TLS.PeerCertificates {
 		gitlabUser, err := makeGitlabUserFromCert(clientCert)

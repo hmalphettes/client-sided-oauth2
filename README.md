@@ -32,6 +32,16 @@ Application Secret: foobar
 GitLab Site URL:    https://localhost:3846
 ```
 
+Create a System Admin bot - or at least with the following permissions: `edit_other_users` and `add_user_to_team`.
+
+Specify the following environment variables
+
+```
+export MATTERMOST_SERVER_ADDR=http://localhost:8065
+export MATTERMOST_BOT_TOKEN=howtynsfojfupk4fubggq3qmde
+export MATTERMOST_DEFAULT_TEAM_NAME=testteam # optional team to which newly created users are added
+```
+
 Now `Login With Gitlab` will extract the username as the CN of the client certificate and log you into mattermost.
 
 Also if you want this server to take care of the TLS termination and run mattermost on `http:8065`:

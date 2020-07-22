@@ -59,7 +59,7 @@ func main() {
 	}
 
 	// ### oauth2 server ###
-	err := authorizationserver.RegisterHandlers(oauth2ServerAddr, keyFiles[0]) // the authorization server (fosite)
+	err := authorizationserver.RegisterHandlers(oauth2ServerAddr, os.Getenv("MATTERMOST_SERVER_ADDR"), keyFiles[0]) // the authorization server (fosite)
 	if err != nil {
 		log.Fatal(err.Error())
 		return
@@ -88,6 +88,12 @@ func main() {
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			}
 		}
+		tr := proxy.Transport
+		if tr == nil {
+			tr = http.DefaultTransport
+		}
+		tr.((*http.Transport)).MaxIdleConns = 1000
+		tr.((*http.Transport)).MaxIdleConnsPerHost = 1000
 
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			proxy.ServeHTTP(w, r)
@@ -126,6 +132,9 @@ func registerHostnamesOnWildcardCerts(tlsConfig *tls.Config) []string {
 	tlsConfig.BuildNameToCertificate()
 
 	for _, hostname := range strings.Split(os.Getenv("WILDCARD_HOSTNAMES"), ",") {
+		if hostname == "" {
+			continue
+		}
 		// foo.wildcarddomain.example => wildcarddomain.example
 		first := strings.Split(hostname, ".")[0]
 		domain := strings.TrimPrefix(hostname, first)

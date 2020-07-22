@@ -4,6 +4,7 @@
 package authorizationserver
 
 import (
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -32,51 +33,32 @@ var (
 	oauth2ServerAddr string
 	// Check the api documentation of `compose.Config` for further configuration options.
 	config = &compose.Config{
-		AccessTokenLifespan: time.Minute * 30,
+		AccessTokenLifespan: time.Minute * 15, // 15 minutes is more than enough for the auth code flow.
 		// ...
 	}
 
-	// This is the example storage that contains:
-	// * an OAuth2 Client with id "my-client" and secret "foobar" capable of all oauth2 and open id connect grant and response types.
-	// * a User for the resource owner password credentials grant type with username "peter" and password "secret".
-	//
-	// You will most likely replace this with your own logic once you set up a real world application.
-	store = storage.NewExampleStore()
+	// the state during the auth flows. everything is in memory with a cache and items are expired after a few minutes
+	store = storage.NewCacheStore()
 
-	// This secret is used to sign authorize codes, access and refresh tokens.
-	// It has to be 32-bytes long for HMAC signing. This requirement can be configured via `compose.Config` above.
-	// In order to generate secure keys, the best thing to do is use crypto/rand:
-	//
-	// ```
-	// package main
-	//
-	// import (
-	//	"crypto/rand"
-	//	"encoding/hex"
-	//	"fmt"
-	// )
-	//
-	// func main() {
-	//	var secret = make([]byte, 32)
-	//	_, err := rand.Read(secret)
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	// }
-	// ```
-	//
-	// If you require this to key to be stable, for example, when running multiple fosite servers, you can generate the
-	// 32byte random key as above and push it out to a base64 encoded string.
-	// This can then be injected and decoded as the `var secret []byte` on server start.
-	secret = []byte("some-cool-secret-that-is-32bytes")
-
-	// privateKey is used to sign JWT tokens. The default strategy uses RS256 (RSA Signature with SHA-256)
-	// privateKey, _ = rsa.GenerateKey(rand.Reader, 2048)
+	secret     = make([]byte, 32)
 	privateKey *rsa.PrivateKey
-	oauth2     fosite.OAuth2Provider
 
+	oauth2      fosite.OAuth2Provider
 	jwtStrategy *fositeoauth2.DefaultJWTStrategy
 )
+
+func init() {
+	var err error
+	// initialize a new rsa key to sign the jwt tokens
+	// It will be used if we choose not to pass a stable private key.
+	privateKey, err = rsa.GenerateKey(rand.Reader, 2048)
+
+	// Initialize a secret to sign the HMAC codes
+	_, err = rand.Read(secret)
+	if err != nil {
+		panic(err)
+	}
+}
 
 func loadPrivateKey(keyFile string) (*rsa.PrivateKey, error) {
 	pemBytes, err := ioutil.ReadFile(keyFile)
@@ -92,7 +74,7 @@ func loadPrivateKey(keyFile string) (*rsa.PrivateKey, error) {
 	return key, nil
 }
 
-func RegisterHandlers(oauth2ServerAddrVal string, keyFile string) error {
+func RegisterHandlers(oauth2ServerAddrVal, mattermostServerAddrVal string, keyFile string) error {
 	var err error
 	oauth2ServerAddr = oauth2ServerAddrVal
 	privateKey, err = loadPrivateKey(keyFile)
@@ -138,7 +120,11 @@ func RegisterHandlers(oauth2ServerAddrVal string, keyFile string) error {
 
 	// Set up oauth2 endpoints. You could also use gorilla/mux or any other router.
 	// gitlab style as expected by Mattermost
-	http.HandleFunc("/oauth/authorize", authEndpoint)
+	if mattermostServerAddrVal != "" {
+		http.HandleFunc("/oauth/authorize", consentEndpoint)
+	} else {
+		http.HandleFunc("/oauth/authorize", authEndpoint)
+	}
 	http.HandleFunc("/oauth/token", tokenEndpoint)
 	http.HandleFunc("/api/v4/user", gitlabUserEndpoint)
 
@@ -169,25 +155,24 @@ func newSession(user, email, issuer string) *storage.Session {
 	opendidSession := &openid.DefaultSession{
 		Claims: &jwt.IDTokenClaims{
 			Issuer:      issuer, //"https://" + oauth2ServerAddr,
-			Subject:     user,
+			Subject:     email,
 			Audience:    []string{"https://" + oauth2ServerAddr}, // TODO try to get the redirect and make that the audience
 			ExpiresAt:   time.Now().Add(time.Hour * 6),
 			IssuedAt:    time.Now(),
 			RequestedAt: time.Now(),
 			AuthTime:    time.Now(),
-			Extra: map[string]interface{}{
-				email: email,
-			},
+			Extra:       map[string]interface{}{},
 		},
 		Headers: &jwt.Headers{
 			Extra: make(map[string]interface{}),
 		},
-		Username: user,
-		Subject:  user,
+		Username: email,
+		Subject:  email,
 	}
 	// return opendidSession
-	return &storage.Session{
+	session := &storage.Session{
 		DefaultSession: opendidSession,
 		Extra:          map[string]interface{}{},
 	}
+	return session
 }

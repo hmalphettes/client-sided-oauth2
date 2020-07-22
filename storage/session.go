@@ -52,6 +52,7 @@ func NewSession(subject string) *Session {
 }
 
 func (s *Session) GetJWTClaims() jwt.JWTClaimsContainer {
+	// fmt.Println("GetJWTClaims called for " + s.Subject)
 	claims := &jwt.JWTClaims{
 		Subject:   s.Subject,
 		Issuer:    s.DefaultSession.Claims.Issuer,

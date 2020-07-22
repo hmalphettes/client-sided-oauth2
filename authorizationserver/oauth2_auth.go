@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/hmalphettes/client-sided-oauth2/storage"
+	"github.com/ory/fosite"
 )
 
 func authEndpoint(rw http.ResponseWriter, req *http.Request) {
@@ -49,6 +50,7 @@ func authEndpoint(rw http.ResponseWriter, req *http.Request) {
 	// 	`, requestedScopes)))
 	// 	return
 	// }
+	fmt.Println("authEndpoint-not-mattermost storage.ExtractUserEmailIssuer")
 	user, email, issuer, err := storage.ExtractUserEmailIssuer(req.TLS.PeerCertificates)
 
 	if err != nil {
@@ -56,12 +58,15 @@ func authEndpoint(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// let's see what scopes the user gave consent to
-	for _, scope := range req.PostForm["scopes"] {
+	completeOAuthCodeGrant(ar, req.PostForm["scopes"], user, email, issuer, rw, req)
+}
+
+func completeOAuthCodeGrant(ar fosite.AuthorizeRequester, scopes []string, user, email, issuer string, rw http.ResponseWriter, req *http.Request) {
+	for _, scope := range scopes {
 		ar.GrantScope(scope)
 	}
 
-	fmt.Printf("Making a new session for '%s'\n", user)
+	// fmt.Printf("Making a new session for '%s'\n", user)
 
 	// Now that the user is authorized, we set up a session:
 	mySessionData := newSession(user, email, issuer)
@@ -90,7 +95,7 @@ func authEndpoint(rw http.ResponseWriter, req *http.Request) {
 	// Now we need to get a response. This is the place where the AuthorizeEndpointHandlers kick in and start processing the request.
 	// NewAuthorizeResponse is capable of running multiple response type handlers which in turn enables this library
 	// to support open id connect.
-	response, err := oauth2.NewAuthorizeResponse(ctx, ar, mySessionData)
+	response, err := oauth2.NewAuthorizeResponse(req.Context(), ar, mySessionData)
 
 	// Catch any errors, e.g.:
 	// * unknown client
