@@ -4,6 +4,7 @@
 package authorizationserver
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -18,6 +19,7 @@ func tokenEndpoint(rw http.ResponseWriter, req *http.Request) {
 	mySessionData := newSession("", "", "")
 
 	// This will create an access request object and iterate through the registered TokenEndpointHandlers to validate the request.
+	fmt.Printf("tokenEndpoint. Creating a accessRequest from %s", req.Host)
 	accessRequest, err := oauth2.NewAccessRequest(ctx, req, mySessionData)
 
 	// Catch any errors, e.g.:

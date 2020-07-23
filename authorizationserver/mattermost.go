@@ -1,10 +1,13 @@
 package authorizationserver
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	mattermost "github.com/mattermost/platform/model"
 )
@@ -21,6 +24,10 @@ var (
 	theClient *mattermost.Client4
 
 	teamIDs = make(map[string]string) // Team name - > Team ID
+
+	insecureTransport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
 )
 
 func makeUnauthenticatedMattermostClient() (*mattermost.Client4, error) {
@@ -29,7 +36,13 @@ func makeUnauthenticatedMattermostClient() (*mattermost.Client4, error) {
 		return nil, err
 	}
 	mmAddr := mmURL.Scheme + "://" + mmURL.Host
-	return mattermost.NewAPIv4Client(mmAddr), nil
+	client := mattermost.NewAPIv4Client(mmAddr)
+	serviceClient, err := getServiceClient()
+	if err != nil {
+		return nil, err
+	}
+	client.HttpClient = serviceClient.HttpClient
+	return client, nil
 }
 
 func getServiceClient() (*mattermost.Client4, error) {
@@ -43,6 +56,10 @@ func getServiceClient() (*mattermost.Client4, error) {
 		return theClient, nil
 	}
 	theClient = mattermost.NewAPIv4Client(mmAddr)
+	theClient.HttpClient = &http.Client{
+		Timeout:   time.Second * 10,
+		Transport: insecureTransport,
+	}
 	token := os.Getenv("MATTERMOST_BOT_TOKEN")
 	if token == "" {
 		return nil, fmt.Errorf("Missing environment variable 'MATTERMOST_BOT_TOKEN'")
@@ -58,10 +75,23 @@ func LookupUser(usernameOrEmail string) (*mattermost.User, error) {
 		return nil, err
 	}
 	if strings.Contains(usernameOrEmail, "@") {
-		user, _ := client.GetUserByEmail(usernameOrEmail, "")
+		user, response := client.GetUserByEmail(usernameOrEmail, "")
+		if response.StatusCode == http.StatusNotFound {
+			return nil, nil
+		}
+		if response.Error != nil {
+			return nil, response.Error
+		}
 		return user, nil
 	}
-	user, _ := client.GetUserByUsername(usernameOrEmail, "")
+	user, response := client.GetUserByUsername(usernameOrEmail, "")
+	fmt.Printf("GetUserByUsername Response %+v\n", response)
+	if response.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if response.Error != nil {
+		return nil, response.Error
+	}
 	return user, nil
 }
 

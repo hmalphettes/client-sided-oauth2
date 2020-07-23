@@ -396,16 +396,16 @@ func consentPostEndpoint(rw http.ResponseWriter, req *http.Request) {
 }
 
 func completeOAuthCodeGrantForMattermost(ar fosite.AuthorizeRequester, scopes []string, mmUser *mattermost.User, rw http.ResponseWriter, req *http.Request, isSignup bool) {
-	signupOrLogin := "login"
-	loginOrSignup := "signup"
-	if isSignup {
-		signupOrLogin = "signup"
-		loginOrSignup = "login"
-	}
-	if !strings.Contains(ar.GetRedirectURI().Path, signupOrLogin) {
-		ar.GetRedirectURI().Path = strings.ReplaceAll(ar.GetRedirectURI().Path, loginOrSignup, signupOrLogin)
-		fmt.Printf("RedirectURI: replaced the %s in redirect URL by %s %+v\n", loginOrSignup, signupOrLogin, ar.GetRedirectURI())
-	}
+	// signupOrLogin := "login"
+	// loginOrSignup := "signup"
+	// if isSignup {
+	// 	signupOrLogin = "signup"
+	// 	loginOrSignup = "login"
+	// }
+	// if !strings.Contains(ar.GetRedirectURI().Path, signupOrLogin) {
+	// 	ar.GetRedirectURI().Path = strings.ReplaceAll(ar.GetRedirectURI().Path, loginOrSignup, signupOrLogin)
+	// 	fmt.Printf("RedirectURI: replaced the %s in redirect URL by %s %+v\n", loginOrSignup, signupOrLogin, ar.GetRedirectURI())
+	// }
 	fmt.Println("completeOAuthCodeGrant for " + mmUser.Email)
 	completeOAuthCodeGrant(ar, scopes, mmUser.Username, mmUser.Email, os.Getenv("MATTERMOST_SERVER_ADDR"), rw, req)
 }

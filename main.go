@@ -69,21 +69,30 @@ func main() {
 	if downstreamAddr == "" {
 		http.HandleFunc("/", welcomeEndpoint)
 	} else {
-		origin, _ := url.Parse(downstreamAddr)
+		target, _ := url.Parse(downstreamAddr)
 		director := func(req *http.Request) {
 			req.Header.Add("X-Forwarded-Host", req.Host)
-			req.Header.Add("X-Origin-Host", origin.Host)
+			req.Header.Add("X-Origin-Host", target.Host)
+			proto := "https"
+			if req.TLS == nil {
+				proto = "http"
+			}
+			req.Header.Add("X-Forwarded-Proto", proto)
 			if strings.HasPrefix(downstreamAddr, "https://") {
 				req.URL.Scheme = "https"
 			} else {
 				req.URL.Scheme = "http"
 			}
-			req.URL.Host = origin.Host
-			req.Host = origin.Host
+			req.URL.Host = target.Host
+
+			// Dont do this: or mattermost will compute its own URL as https://yourmattermost.example.com:8065 - we dont want the port
+			// req.Host = target.Host
+			// lots of ppl do it though...
+			// the best explaination is here: https://stackoverflow.com/questions/42921567/what-is-the-difference-between-host-and-url-host-for-golang-http-request
 		}
 		proxy := &httputil.ReverseProxy{Director: director}
 
-		if os.Getenv("DOWNSTREAM_SERVER_TLS_INSECURE_SKIP_VERIFY") != "" && origin.Scheme == "https" {
+		if os.Getenv("DOWNSTREAM_SERVER_TLS_INSECURE_SKIP_VERIFY") != "" && target.Scheme == "https" {
 			proxy.Transport = &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			}
@@ -105,13 +114,13 @@ func main() {
 		MinVersion:   tls.VersionTLS12,
 		Certificates: loadedTLSCerts,
 	}
-	certNames := registerHostnamesOnWildcardCerts(tlsConfig)
+	_ = registerHostnamesOnWildcardCerts(tlsConfig)
 
-	listenAddr := oauth2ServerAddr
-
-	if len(certNames) > 1 {
-		listenAddr = "0.0.0.0:" + strings.Split(listenAddr, ":")[1]
+	serverPort := os.Getenv("OAUTH2_SERVER_PORT")
+	if serverPort == "" {
+		serverPort = strings.Split(oauth2ServerAddr, ":")[1]
 	}
+	listenAddr := "0.0.0.0:" + serverPort
 	server := &http.Server{
 		TLSConfig: tlsConfig,
 		Addr:      listenAddr,

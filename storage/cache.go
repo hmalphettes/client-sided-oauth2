@@ -23,6 +23,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -101,12 +102,16 @@ func (s *CacheStore) DeleteOpenIDConnectSession(_ context.Context, authorizeCode
 func (s *CacheStore) GetClient(_ context.Context, id string) (fosite.Client, error) {
 	cl, ok := s.Clients[id]
 	if ok {
-		return cl.(fosite.Client), nil
+		fmt.Printf("There is already a client for %s; redirects=%+v\n", id, cl.GetRedirectURIs())
+		return cl, nil
 	}
+	fmt.Printf("Making a Client for %s\n", id)
 	redirectURIs := []string{id /*"http://localhost:3846/callback"*/}
 	// be nice with gitlab:
 	if strings.HasSuffix(id, "/gitlab") {
-		redirectURIs = []string{strings.TrimSuffix(id, "/gitlab") + "/signup/gitlab/complete", strings.TrimSuffix(id, "/gitlab") + "/login/gitlab/complete"}
+		mmAddr := strings.TrimSuffix(id, "/gitlab")
+		redirectURIs = []string{mmAddr + "/signup/gitlab/complete", mmAddr + "/login/gitlab/complete"}
+		fmt.Printf("Original redirectURIs %+v\n", redirectURIs)
 	}
 
 	cl = &fosite.DefaultClient{
